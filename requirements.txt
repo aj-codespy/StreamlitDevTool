@@ -1,4 +1,4 @@
-# requirements.txt for the Streamlit App Generator
+# requirements.txt for GenieCraft: AI Streamlit App Builder (v0.4)
 
 # Core Streamlit framework
 streamlit>=1.33.0,<2.0.0
@@ -9,6 +9,20 @@ google-generativeai>=0.5.0,<0.7.0
 # Streamlit component for the ACE code editor
 streamlit-ace>=0.1.1,<0.2.0
 
-# Optional: For improved clipboard functionality if you were to implement
-# a more robust server-side copy mechanism (though the current app uses JS for client-side copy)
-# pyperclip>=1.8.2,<2.0.0
+# Data handling and numerical operations
+pandas>=2.0.0,<3.0.0
+numpy>=1.24.0,<2.0.0
+
+# Plotting and Visualization
+plotly>=5.15.0,<6.0.0
+matplotlib>=3.7.0,<4.0.0
+seaborn>=0.12.0,<0.14.0
+
+# Image processing
+Pillow>=10.0.0,<11.0.0
+
+# HTTP requests
+requests>=2.30.0,<3.0.0
+
+# Optional: Game development library (install if you intend to generate Pygame apps)
+# pygame>=2.5.0,<3.0.0
