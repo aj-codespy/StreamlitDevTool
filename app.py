@@ -1,10 +1,28 @@
 import streamlit as st
 import google.generativeai as genai
-from streamlit_ace import st_ace # Using streamlit-ace for the code editor
+from streamlit_ace import st_ace
 import traceback
 
+# --- Attempt to pre-import common libraries for the exec scope ---
+import pandas as pd
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
+import matplotlib.pyplot as plt
+import seaborn as sns
+from PIL import Image, ImageDraw, ImageFont # Common PIL modules
+import datetime
+import requests
+import io # For handling byte streams, e.g., with images
+
+# Pygame is problematic for direct preview; this is a best-effort for simple cases.
+try:
+    import pygame
+except ImportError:
+    pygame = None # Pygame might not be installed, handle gracefully
+
 # --- Constants ---
-APP_TITLE = "GenieCraft: AI Streamlit App Builder" # Creative name example
+APP_TITLE = "GenieCraft: AI Streamlit App Builder"
 DEFAULT_CATEGORIES = ["Data Visualization", "Data Understanding", "Text Processing", "Personal Management", "Utilities", "Fun & Games", "Other"]
 
 # --- Session State Initialization ---
@@ -14,15 +32,15 @@ def initialize_session_state():
         'generated_code': "",
         'preview_key': 0,
         'error_message': "",
-        'success_message': "", # Added for success messages
+        'success_message': "",
         'info_message': "",
-        'gemini_api_key_from_user': "" # Stores API key entered by user in sidebar
+        'gemini_api_key_from_user': ""
     }
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
 
-# --- Custom CSS ---
+# --- Custom CSS (remains the same as previous version) ---
 def load_custom_css():
     """Loads custom CSS for an enhanced Notion-like minimalistic design."""
     st.markdown("""
@@ -181,19 +199,6 @@ def load_custom_css():
             text-align: center;
         }
         .js-copy-button:hover { background-color: #333333; }
-
-        /* --- Alert/Message Styling --- */
-        /* Streamlit's st.error, st.success, st.info, st.warning already have distinct colors.
-           We can refine their appearance if needed, but defaults are usually good.
-           Example:
-        div[data-testid="stAlert"] > div[role="alert"] {
-            border-radius: 4px;
-            border-left-width: 4px;
-        }
-        div[data-testid="stAlert"][class*="stAlert-error"] > div[role="alert"] { border-left-color: #E53E3E; }
-        div[data-testid="stAlert"][class*="stAlert-success"] > div[role="alert"] { border-left-color: #38A169; }
-        */
-
     </style>
     """, unsafe_allow_html=True)
 
@@ -205,15 +210,15 @@ def configure_gemini_api():
     try:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-1.5-flash-latest')
-        st.session_state.error_message = "" # Clear previous errors if configuration is successful
+        st.session_state.error_message = ""
         return model
     except Exception as e:
         st.session_state.error_message = f"💥 Failed to configure Gemini API: {e}. Please ensure your API key is correct and has permissions."
         return None
 
-def generate_code_with_gemini(prompt, category, model):
+def generate_code_with_gemini(prompt_text, category, model):
     """Generates Streamlit code using the Gemini API."""
-    if not model: # Model would be None if API key is missing or configuration failed
+    if not model:
         st.session_state.error_message = "💥 Gemini model not configured. Please enter a valid API key in the sidebar."
         return None
 
@@ -221,18 +226,38 @@ def generate_code_with_gemini(prompt, category, model):
     You are an expert Python Streamlit app generator.
     Your task is to generate a complete, self-contained Streamlit app script based on the user's request.
     The category for the app is: "{category}".
-    The user's request is: "{prompt}"
+    The user's request is: "{prompt_text}"
 
     Follow these guidelines strictly:
     1.  The output MUST be ONLY Python code for a Streamlit app. Do not include any explanations, markdown formatting, or ```python ``` tags around the code.
     2.  The script must start with `import streamlit as st`.
-    3.  Include any other necessary imports (e.g., pandas, numpy, plotly, etc.) if the app requires them.
+    3.  Include any other necessary imports (e.g., pandas, numpy, plotly, matplotlib, PIL, requests, datetime, etc.) if the app requires them.
+        Even if common libraries might be pre-injected into the execution scope, always include standard imports in the generated code for portability and clarity.
     4.  If the app you are generating needs user input for ITS OWN API keys, file uploads, or other parameters, use Streamlit widgets directly within the generated code. For example:
-        -   For an API key needed by the GENERATED app: `api_key_for_generated_app = st.text_input("Enter [Specific Service] API Key", type="password", key="gen_api_key_XYZ")` (Use unique keys with a 'gen_' prefix and a random-like suffix like XYZ to avoid conflicts).
+        -   For an API key needed by the GENERATED app: `api_key_for_generated_app = st.text_input("Enter [Specific Service] API Key", type="password", key="gen_api_key_XYZ")` (Use unique keys with a 'gen_' prefix).
         -   For a file upload needed by the GENERATED app: `uploaded_file_for_generated_app = st.file_uploader("Upload a [File Type] file", type=["csv"], key="gen_file_uploader_ABC")`
-    5.  Ensure the generated code is functional and tries to achieve the user's request.
-    6.  Structure the app logically. Use functions if it improves readability for more complex apps.
-    7.  If generating visualizations, use common libraries like Matplotlib, Seaborn, Plotly, or Streamlit's native charting elements.
+    5.  If using Pygame for visuals, the generated code MUST convert the Pygame surface to an image format (e.g., PNG bytes) and display it using `st.image()`.
+        Avoid direct Pygame display methods like `pygame.display.set_mode()` or `pygame.display.flip()` as they will not work in the preview.
+        Example for Pygame image conversion:
+        ```python
+        # import pygame
+        # import streamlit as st
+        # import io
+        # pygame.init() # Only if essential for surface creation, avoid if possible for simple drawing
+        # screen_width = 600
+        # screen_height = 400
+        # # Create a surface - avoid pygame.display.set_mode()
+        # my_surface = pygame.Surface((screen_width, screen_height))
+        # my_surface.fill((255, 255, 255)) # White background
+        # pygame.draw.circle(my_surface, (0, 0, 255), (300, 200), 50) # Draw a blue circle
+        # # Convert surface to bytes for st.image
+        # img_bytes_io = io.BytesIO()
+        # pygame.image.save(my_surface, img_bytes_io, "PNG")
+        # img_bytes_io.seek(0)
+        # st.image(img_bytes_io, caption='Pygame Output')
+        ```
+    6.  Ensure the generated code is functional and tries to achieve the user's request.
+    7.  Structure the app logically. Use functions if it improves readability for more complex apps.
     8.  The app should be runnable as a standalone `.py` file.
     9.  Avoid using `st.set_page_config()` in the generated code as it might conflict with the main app.
     10. If the request is very complex, provide a functional core that addresses the main part.
@@ -241,7 +266,7 @@ def generate_code_with_gemini(prompt, category, model):
     Generate the Streamlit app code now:
     """
     try:
-        st.session_state.error_message = "" # Clear previous errors
+        st.session_state.error_message = ""
         response = model.generate_content(full_prompt)
         code = response.text.strip()
         if code.startswith("```python"):
@@ -259,20 +284,19 @@ def render_sidebar(categories):
     with st.sidebar:
         st.markdown("## ✨ App Controls")
         st.markdown("---")
-
-        # API Key Input for THIS generator app
         st.markdown("### Generator API Key")
-        
-
+        st.session_state.gemini_api_key_from_user = st.text_input(
+            "🔑 Your Gemini API Key:",
+         
+       
         st.markdown("---")
         st.markdown("### New App Details")
-        prompt_text = st.text_area("📝 App Idea (Prompt):", height=180, placeholder="e.g., 'A stock price viewer with a date range selector.'", key="prompt_input")
-        category_selection = st.selectbox(
+        prompt_text_val = st.text_area("📝 App Idea (Prompt):", height=180, placeholder="e.g., 'A stock price viewer with a date range selector.'", key="prompt_input")
+        category_selection_val = st.selectbox(
             "🗂️ App Category:",
             categories,
             key="category_input"
         )
-
         generate_button_clicked = st.button("🚀 Generate App Code", type="primary", use_container_width=True)
 
         st.markdown("---")
@@ -283,10 +307,10 @@ def render_sidebar(categories):
             <li>Mention data: "Input a CSV, output a table."</li>
             <li>Suggest libraries: "Use Plotly for interactivity."</li>
             <li>For complex apps, start simple.</li>
+            <li>For Pygame: "Show a red circle on white using Pygame and st.image".</li>
         </ul>
         """, unsafe_allow_html=True)
-
-        return prompt_text, category_selection, generate_button_clicked
+        return prompt_text_val, category_selection_val, generate_button_clicked
 
 def render_code_editor_view():
     """Renders the code editor and related actions."""
@@ -297,10 +321,10 @@ def render_code_editor_view():
     edited_code = st_ace(
         value=st.session_state.generated_code,
         language="python",
-        theme="github", # GitHub theme
+        theme="github",
         keybinding="vscode",
         font_size=13,
-        height=550, # Increased height
+        height=550,
         show_gutter=True,
         show_print_margin=True,
         wrap=True,
@@ -323,10 +347,9 @@ def render_code_editor_view():
             copyText.setSelectionRange(0, 99999);
             try {{
                 var successful = document.execCommand('copy');
-                // Optionally, provide feedback via alert or a Streamlit element
-                // For now, relying on browser's default behavior or a future st.toast
-                if(successful) {{ st.success("Code copied to clipboard!"); }} // This won't work directly, need st.experimental_rerun or similar
-                else {{ console.warn("Copy command was unsuccessful"); }}
+                if(successful) {{
+                    // alert("Code copied to clipboard!"); // Simple feedback
+                }}
             }} catch (err) {{
                 console.error('Oops, unable to copy', err);
             }}
@@ -334,19 +357,9 @@ def render_code_editor_view():
         </script>
         <button class="js-copy-button" onclick="copyToClipboard_{st.session_state.preview_key}()">📋 Copy Code</button>
     """
-    # Note: Direct st.success from JS onclick is not straightforward.
-    # For now, the JS copy will happen silently or with a browser alert if you add it in the JS.
-
     sub_col1, sub_col2 = st.columns(2)
     with sub_col1:
-        # Using st.markdown for the JS copy button to ensure it's part of Streamlit's layout flow
         st.markdown(copy_js, unsafe_allow_html=True)
-        # A placeholder for Streamlit's native copy feedback if it becomes available or if we use st.toast
-        if "copy_feedback" in st.session_state and st.session_state.copy_feedback:
-            st.success(st.session_state.copy_feedback) # This needs a mechanism to be set
-            del st.session_state.copy_feedback
-
-
     with sub_col2:
         st.download_button(
             label="📥 Download .py File",
@@ -365,22 +378,47 @@ def render_preview_view():
     st.markdown("<div class='output-container-title'>App Output</div>", unsafe_allow_html=True)
 
     run_preview_button = st.button("▶️ Run Preview", use_container_width=True, disabled=not st.session_state.generated_code, key="run_preview_btn")
-    st.markdown("<p class='small-text'>Note: Preview runs the generated code directly. Complex apps or apps with errors might not render correctly or could affect this generator app. Ensure generated code uses unique keys for its widgets (e.g., `key='gen_widget_XYZ'`).</p>", unsafe_allow_html=True)
+    st.markdown("""
+    <p class='small-text'>
+        Note: Preview runs the generated code directly.
+        Complex apps or apps with errors might not render correctly.
+        Ensure generated code uses unique keys for its widgets (e.g., `key='gen_widget_XYZ'`).
+        <br>
+        <strong>Pygame/GUI Library Limitation:</strong> Direct rendering of Pygame windows or similar GUI libraries is not supported in this preview.
+        For Pygame, generated code should use `st.image()` to display visuals. Full interactivity will be limited.
+    </p>
+    """, unsafe_allow_html=True)
 
     preview_area = st.empty()
 
     if run_preview_button and st.session_state.generated_code:
         with preview_area.container():
             try:
+                # Define the global scope for exec, pre-populating with common libraries
                 exec_globals = {
                     "st": st,
-                    "__name__": f"__main_preview_module_{st.session_state.preview_key}"
+                    "__name__": f"__main_preview_module_{st.session_state.preview_key}",
+                    "pd": pd,
+                    "np": np,
+                    "px": px,
+                    "go": go,
+                    "plt": plt,
+                    "sns": sns,
+                    "Image": Image,
+                    "ImageDraw": ImageDraw,
+                    "ImageFont": ImageFont,
+                    "datetime": datetime,
+                    "requests": requests,
+                    "io": io, # Make io available for byte streams
                 }
+                if pygame: # Only add pygame to globals if it was successfully imported
+                    exec_globals["pygame"] = pygame
+
                 exec(st.session_state.generated_code, exec_globals)
-                st.session_state.success_message = "Preview executed successfully!" # Use success message
+                st.session_state.success_message = "Preview executed successfully!"
             except Exception as e:
                 st.error(f"⚠️ Error during preview execution:\n```\n{traceback.format_exc()}\n```")
-                st.session_state.success_message = "" # Clear success message on error
+                st.session_state.success_message = ""
     elif not st.session_state.generated_code:
         preview_area.markdown("<div class='preview-placeholder'>Generate or paste code to see a preview here.</div>", unsafe_allow_html=True)
     else:
@@ -395,35 +433,27 @@ def main():
     load_custom_css()
     initialize_session_state()
 
-    # --- Sidebar ---
-    prompt, category, generate_clicked = render_sidebar(DEFAULT_CATEGORIES)
+    prompt_text, category_selection, generate_button_clicked_flag = render_sidebar(DEFAULT_CATEGORIES)
+    gemini_model_instance = configure_gemini_api()
 
-    # --- Gemini Model Configuration ---
-    # Attempt to configure Gemini model if API key is present.
-    # configure_gemini_api will set error messages if key is invalid/missing.
-    gemini_model = configure_gemini_api()
-
-    # --- Handle Code Generation ---
-    if generate_clicked:
-        if not prompt:
+    if generate_button_clicked_flag:
+        if not prompt_text:
             st.session_state.error_message = "⚠️ Please enter a prompt for your app idea."
-        elif not gemini_model: # Checks if API key was valid and model configured
-             # Error message is already set by configure_gemini_api or render_sidebar
-             pass
-        else: # Prompt and model are available
+        elif not gemini_model_instance:
+            # Error message already set by configure_gemini_api or render_sidebar
+            pass
+        else:
             with st.spinner("⚙️ Generating Streamlit app code with Gemini... Please wait."):
-                generated_code = generate_code_with_gemini(prompt, category, gemini_model)
-                if generated_code:
-                    st.session_state.generated_code = generated_code
+                generated_code_output = generate_code_with_gemini(prompt_text, category_selection, gemini_model_instance)
+                if generated_code_output:
+                    st.session_state.generated_code = generated_code_output
                     st.session_state.preview_key += 1
                     st.session_state.success_message = "Code generated successfully! Click 'Run Preview'."
-                elif not st.session_state.error_message: # If no specific Gemini error, set a generic one
+                elif not st.session_state.error_message:
                     st.session_state.error_message = "💥 Failed to generate code. The response might have been empty or malformed."
 
-    # --- Main Content Area ---
     st.markdown(f"<h1 style='text-align: center; margin-bottom: 1.5rem; font-weight: 700;'>{APP_TITLE}</h1>", unsafe_allow_html=True)
 
-    # Display global error/success/info messages
     if st.session_state.error_message:
         st.error(st.session_state.error_message)
         st.session_state.error_message = ""
@@ -440,9 +470,8 @@ def main():
     with col_preview:
         render_preview_view()
 
-    # --- Footer ---
     st.markdown("---")
-    st.markdown("<p style='text-align: center; color: #AAAAAA; font-size:0.8rem;'>GenieCraft v0.3 - Use with care, generated code execution is experimental.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #AAAAAA; font-size:0.8rem;'>GenieCraft v0.4 - Use with care, generated code execution is experimental.</p>", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
