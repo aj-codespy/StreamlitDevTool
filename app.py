@@ -284,9 +284,7 @@ def render_sidebar(categories):
     with st.sidebar:
         st.markdown("## ✨ App Controls")
         st.markdown("---")
-        st.markdown("### Generator API Key")
-        st.session_state.gemini_api_key_from_user = st.text_input(
-            "🔑 Your Gemini API Key:",
+     
          
        
         st.markdown("---")
