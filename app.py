@@ -201,9 +201,7 @@ def load_custom_css():
 def configure_gemini_api():
     """Configures the Gemini API using the key from session state."""
     api_key = "AIzaSyDk27PsOo83ck8c15ql80R1xXwmK2-NG_s"
-    if not api_key or api_key == GEMINI_API_KEY_INPUT_PLACEHOLDER:
-        st.session_state.error_message = "⚠️ Please enter your Gemini API Key in the sidebar to enable code generation."
-        return None
+    
     try:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-1.5-flash-latest')
@@ -264,16 +262,7 @@ def render_sidebar(categories):
 
         # API Key Input for THIS generator app
         st.markdown("### Generator API Key")
-        st.session_state.gemini_api_key_from_user = st.text_input(
-            "🔑 Your Gemini API Key:",
-            type="password",
-            value=st.session_state.gemini_api_key_from_user or "", # Persist entered key
-            placeholder=GEMINI_API_KEY_INPUT_PLACEHOLDER,
-            help="Enter your Google Gemini API key. This is required for the App Generator to work."
-        )
-        if not st.session_state.gemini_api_key_from_user or st.session_state.gemini_api_key_from_user == GEMINI_API_KEY_INPUT_PLACEHOLDER:
-             st.caption("👆 Your API key is needed to generate apps.")
-
+        
 
         st.markdown("---")
         st.markdown("### New App Details")
